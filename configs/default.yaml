@@ -1,0 +1,85 @@
+# Default config. Experiment configs may override any field.
+
+run_name: default
+seed: 0
+output_root: outputs
+
+data:
+  dataset: synthetic         # synthetic | ett | electricity | weather | traffic | gift_eval | fev_bench
+  data_root: data_cache
+  series_count: 4            # for synthetic; ignored for real datasets
+  series_length: 1200        # for synthetic
+  input_length: 96
+  forecast_horizon: 24
+  val_fraction: 0.15
+  test_fraction: 0.15
+  scaling: instance_zscore   # instance_zscore | global_zscore | none
+
+model_panel:
+  architectures: [lstm, gru, transformer, tcn]
+  regimes: [one_step_recursive, h_step_direct, direct_multi_step]
+  hidden_size: 32
+  num_layers: 2
+  dropout: 0.1
+  transformer_heads: 4
+  tcn_kernel_size: 3
+  tcn_levels: 3
+  train_epochs: 5
+  batch_size: 64
+  lr: 0.001
+  weight_decay: 0.0
+  shared_backbone_for_hstep: true      # use shared backbone with horizon-specific heads
+  device: auto                          # auto | cpu | cuda
+
+foundation_models:
+  enabled: false
+  models: []                            # e.g. [chronos_bolt_tiny]
+
+cards:
+  include_horizonwise_disagreement: true
+  include_residual_summary: true
+  recent_residual_window: 24
+  ood_neighbors: 20
+
+routers:
+  failure_label: top_quantile           # top_quantile | threshold
+  top_quantile: 0.2
+  threshold_multiplier: 1.0             # default_error > val_mean + k*val_std
+  models: [logistic_regression, random_forest, gradient_boosted, disagreement_threshold]
+  test_fraction_for_router: 0.0         # 0 means train router on val instances only
+
+agents:
+  provider: mock                        # mock | openai | anthropic | local
+  model: mock-1
+  temperature: 0.0
+  max_retries: 2
+  cache_dir: outputs/.llm_cache
+  debate_rounds: 1
+  pricing_prompt_per_1k: 0.0
+  pricing_completion_per_1k: 0.0
+  prompt_version: v1
+
+decision_systems:
+  forecast_only:
+    - validation_best
+    - horizonwise_validation_best
+    - simple_mean_ensemble
+    - validation_weighted_ensemble
+    - median_ensemble
+  non_llm:
+    - logistic_regression_router
+    - random_forest_router
+    - gradient_boosted_router
+    - disagreement_threshold_router
+  llm:
+    - single_llm_auditor
+    - independent_agents_vote
+    - always_on_debate
+    - selective_debate_no_tools
+    - tool_only_verifier
+    - selective_tool_verified_debate
+
+evaluation:
+  bootstrap_samples: 1000
+  coverages: [0.5, 0.7, 0.8, 0.9, 0.95]
+  reliability_bins: 10

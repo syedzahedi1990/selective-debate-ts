@@ -1,0 +1,33 @@
+# Smoke-test MVP. Tiny synthetic data, reduced panel, mock provider, fast.
+# Extends configs/default.yaml; only diffs need to be specified.
+
+run_name: mvp_smoke
+seed: 0
+
+data:
+  dataset: synthetic
+  series_count: 4
+  series_length: 600
+  input_length: 48
+  forecast_horizon: 12
+
+model_panel:
+  # Smoke-test panel: all 4 architectures, but only one regime to keep runtime small.
+  # Setting `regimes: [direct_multi_step]` is one valid way to satisfy the MVP
+  # acceptance criterion ("all four architectures under one regime").
+  # Increase to all 3 regimes once the smoke test passes.
+  architectures: [lstm, gru, transformer, tcn]
+  regimes: [one_step_recursive, h_step_direct, direct_multi_step]
+  hidden_size: 16
+  num_layers: 1
+  train_epochs: 2
+  batch_size: 32
+
+routers:
+  models: [logistic_regression, random_forest, disagreement_threshold]
+
+agents:
+  provider: mock
+
+evaluation:
+  bootstrap_samples: 200

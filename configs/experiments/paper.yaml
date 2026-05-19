@@ -1,0 +1,28 @@
+# Full paper experiment. Used on Colab Pro after MVP passes.
+# Extends configs/default.yaml.
+
+run_name: paper_main
+seed: 0
+
+data:
+  dataset: ett                 # switch to gift_eval / fev_bench when stable
+  input_length: 96
+  forecast_horizon: 24
+
+model_panel:
+  architectures: [lstm, gru, transformer, tcn]
+  regimes: [one_step_recursive, h_step_direct, direct_multi_step]
+  hidden_size: 64
+  num_layers: 2
+  train_epochs: 30
+
+foundation_models:
+  enabled: false               # flip to true and populate `models` to add Chronos / TimesFM
+
+agents:
+  provider: openai             # set OPENAI_API_KEY
+  model: gpt-4o-mini
+  debate_rounds: 1
+
+evaluation:
+  bootstrap_samples: 2000
