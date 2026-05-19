@@ -19,15 +19,27 @@ class ScaleState:
 
 
 class InstanceZScore:
-    """Per-instance z-score using the input window only."""
+    """Per-instance z-score using the input window only.
 
-    eps = 1e-6
+    Robust to near-constant windows: the std floor scales with the magnitude
+    of the mean (so a near-constant signal at level 30 still has std >= 0.03,
+    preventing standardized values from exploding to 1e6+).
+    """
+
+    abs_floor = 1e-3
+    rel_floor = 1e-3      # std floor = max(abs_floor, rel_floor * |mean|)
 
     def fit_window(self, x: np.ndarray) -> ScaleState:
+        x = np.asarray(x, dtype=np.float64)
+        if not np.all(np.isfinite(x)):
+            x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
         m = float(np.mean(x))
         s = float(np.std(x))
-        if s < self.eps:
-            s = self.eps
+        floor = max(self.abs_floor, self.rel_floor * abs(m))
+        if not np.isfinite(s) or s < floor:
+            s = floor
+        if not np.isfinite(m):
+            m = 0.0
         return ScaleState(mean=m, std=s)
 
     def transform_window(self, x: np.ndarray, state: ScaleState) -> np.ndarray:

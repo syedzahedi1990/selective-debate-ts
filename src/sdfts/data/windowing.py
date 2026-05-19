@@ -41,12 +41,14 @@ class WindowSet:
 def make_windows(splits: list[SeriesSplit], cfg: dict[str, Any]) -> WindowSet:
     L = int(cfg["data"]["input_length"])
     H = int(cfg["data"]["forecast_horizon"])
+    train_stride = int(cfg["data"].get("train_stride", 1))
     scaler = InstanceZScore()
     ws = WindowSet(input_length=L, forecast_horizon=H)
+    skipped_nan = 0
 
     for split in splits:
         for split_name, raw, stride in (
-            ("train", split.train, 1),
+            ("train", split.train, train_stride),
             ("val", split.val, max(1, H // 2)),
             ("test", split.test, H),
         ):
@@ -55,6 +57,11 @@ def make_windows(splits: list[SeriesSplit], cfg: dict[str, Any]) -> WindowSet:
             for i, start in enumerate(range(0, len(raw) - L - H + 1, stride)):
                 x = raw[start : start + L]
                 y = raw[start + L : start + L + H]
+                # Skip any window with non-finite values; standardization
+                # would otherwise propagate NaNs through the entire panel.
+                if not (np.all(np.isfinite(x)) and np.all(np.isfinite(y))):
+                    skipped_nan += 1
+                    continue
                 state = scaler.fit_window(x)
                 xs = scaler.transform_window(x, state)
                 ys = scaler.transform_window(y, state)
@@ -68,6 +75,9 @@ def make_windows(splits: list[SeriesSplit], cfg: dict[str, Any]) -> WindowSet:
                     scale=state,
                 )
                 getattr(ws, split_name).append(w)
+    if skipped_nan:
+        from sdfts.utils.logging import get_logger
+        get_logger(__name__).warning("Skipped %d windows containing NaN/inf.", skipped_nan)
 
     # Optionally subsample test windows so LLM evaluation cost stays bounded.
     # Pseudo-random (seeded) uniform sample over the full test set, sorted to
