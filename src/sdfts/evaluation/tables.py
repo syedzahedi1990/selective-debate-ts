@@ -12,7 +12,17 @@ def write_csv(path: str | Path, rows: list[dict[str, Any]], cols: Iterable[str] 
     if not rows:
         p.write_text("")
         return
-    fieldnames = list(cols) if cols else list(rows[0].keys())
+    if cols:
+        fieldnames = list(cols)
+    else:
+        # Union of all keys, preserving first-seen order across rows.
+        fieldnames = []
+        seen: set[str] = set()
+        for r in rows:
+            for k in r.keys():
+                if k not in seen:
+                    seen.add(k)
+                    fieldnames.append(k)
     with open(p, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
