@@ -40,6 +40,8 @@ def main(argv: list[str] | None = None) -> int:
         if name == "run-agents":
             p.add_argument("--provider", default=None,
                            help="override agents.provider for this run (mock|openai|anthropic)")
+            p.add_argument("--model", default=None,
+                           help="override agents.model for this run (e.g. gpt-4o-mini)")
             p.add_argument("--systems", default=None,
                            help="comma-separated list of LLM decision systems to run")
 
@@ -61,7 +63,9 @@ def main(argv: list[str] | None = None) -> int:
         out = {"note": "Forecast-only and router baselines are evaluated by the `evaluate` step."}
     elif args.cmd == "run-agents":
         systems = [s.strip() for s in args.systems.split(",")] if args.systems else None
-        out = run_agents(cfg, systems=systems, provider_override=args.provider)
+        out = run_agents(cfg, systems=systems,
+                         provider_override=args.provider,
+                         model_override=args.model)
     elif args.cmd == "evaluate":
         out = run_evaluate(cfg)
     elif args.cmd == "make-figures":

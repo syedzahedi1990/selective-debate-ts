@@ -37,11 +37,19 @@ def _all_decision_systems(cfg: dict[str, Any]) -> list[str]:
     return list(cfg["decision_systems"].get("llm", []))
 
 
-def run_all(cfg: dict[str, Any], systems: list[str] | None = None, provider_override: str | None = None) -> dict[str, Any]:
-    if provider_override:
+def run_all(
+    cfg: dict[str, Any],
+    systems: list[str] | None = None,
+    provider_override: str | None = None,
+    model_override: str | None = None,
+) -> dict[str, Any]:
+    if provider_override or model_override:
         cfg = dict(cfg)
         cfg["agents"] = dict(cfg["agents"])
-        cfg["agents"]["provider"] = provider_override
+        if provider_override:
+            cfg["agents"]["provider"] = provider_override
+        if model_override:
+            cfg["agents"]["model"] = model_override
     provider = get_provider(cfg)
     cache_dir = REPO_ROOT / cfg["agents"]["cache_dir"]
     cache = LLMCache(cache_dir)

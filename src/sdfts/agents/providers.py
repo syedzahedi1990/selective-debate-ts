@@ -315,12 +315,24 @@ class AnthropicProvider(LLMProvider):
         )
 
 
+_DEFAULT_MODELS = {
+    "mock": "mock-1",
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5-20251001",
+}
+
+
 def get_provider(cfg: dict[str, Any]) -> LLMProvider:
     name = cfg["agents"]["provider"]
+    model = cfg["agents"].get("model", "")
+    # If the config still has the mock placeholder but the user picked a real
+    # provider on the CLI, swap to that provider's sensible default model.
+    if name != "mock" and (not model or model.startswith("mock")):
+        model = _DEFAULT_MODELS[name]
     if name == "mock":
         return MockProvider(seed=int(cfg["seed"]))
     if name == "openai":
-        return OpenAIProvider(model=cfg["agents"]["model"], temperature=float(cfg["agents"]["temperature"]))
+        return OpenAIProvider(model=model, temperature=float(cfg["agents"]["temperature"]))
     if name == "anthropic":
-        return AnthropicProvider(model=cfg["agents"]["model"], temperature=float(cfg["agents"]["temperature"]))
+        return AnthropicProvider(model=model, temperature=float(cfg["agents"]["temperature"]))
     raise ValueError(f"Unknown provider: {name}")
