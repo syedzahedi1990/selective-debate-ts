@@ -132,7 +132,7 @@ def plot_ablation_bars(
     metric: str,
     out_path: str | Path,
 ) -> None:
-    names = [r["name"] for r in rows]
+    names = [r.get("name") or r.get("method") or "?" for r in rows]
     vals = [float(r[metric]) for r in rows]
     fig, ax = plt.subplots(figsize=(max(5, len(names) * 0.8), 4))
     ax.bar(names, vals)
