@@ -3,11 +3,15 @@
 For each enabled decision system in cfg, iterate over the **test** forecast
 cards, run the corresponding harness, and store one row per (instance, system)
 to ``outputs/<run_name>/agents/decisions.jsonl``.
+
+Real LLM calls run with a thread pool (``agents.concurrency``, default 8) so
+the wall-clock time stays bounded. The mock provider runs serially.
 """
 from __future__ import annotations
 
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -72,14 +76,21 @@ def run_all(
 
     decisions: list[dict[str, Any]] = []
     cost_summary: dict[str, dict[str, float]] = {}
+    # Mock provider is fast in-process: keep it serial. Real providers benefit
+    # from concurrent API calls; default to 8 workers, configurable.
+    is_mock = cfg["agents"]["provider"] == "mock"
+    max_workers = 1 if is_mock else int(cfg["agents"].get("concurrency", 8))
+
     for sys_name in systems:
-        log.info("Running decision system: %s", sys_name)
+        log.info("Running decision system: %s (workers=%d)", sys_name, max_workers)
         sys_cost = {"n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "elapsed_seconds": 0.0}
-        for i, card in enumerate(cards):
+
+        def _one(i_card):
+            i, card = i_card
             t0 = time.time()
             jd, stats = _dispatch(sys_name, provider, cache, card, cfg, failure_probs[i])
             elapsed = time.time() - t0
-            decisions.append({
+            return i, {
                 "instance_id": card["instance_id"],
                 "decision_system": sys_name,
                 "decision": jd,
@@ -91,11 +102,31 @@ def run_all(
                     "debaters": stats.debaters,
                 },
                 "router_failure_prob": float(failure_probs[i]),
-            })
-            sys_cost["n_calls"] += stats.n_calls
-            sys_cost["prompt_tokens"] += stats.prompt_tokens
-            sys_cost["completion_tokens"] += stats.completion_tokens
-            sys_cost["elapsed_seconds"] += stats.elapsed_seconds or elapsed
+            }
+
+        sys_decisions: list[dict[str, Any] | None] = [None] * len(cards)
+        wall_t0 = time.time()
+        if max_workers == 1:
+            for i, card in enumerate(cards):
+                _, d = _one((i, card))
+                sys_decisions[i] = d
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futs = [ex.submit(_one, (i, c)) for i, c in enumerate(cards)]
+                for fut in as_completed(futs):
+                    i, d = fut.result()
+                    sys_decisions[i] = d
+
+        for d in sys_decisions:
+            assert d is not None
+            decisions.append(d)
+            sys_cost["n_calls"] += d["stats"]["n_calls"]
+            sys_cost["prompt_tokens"] += d["stats"]["prompt_tokens"]
+            sys_cost["completion_tokens"] += d["stats"]["completion_tokens"]
+        sys_cost["elapsed_seconds"] = time.time() - wall_t0   # wall-clock, not summed
+        log.info("  %s: %d instances in %.1fs (%d calls, %d prompt+%d completion tokens)",
+                 sys_name, len(cards), sys_cost["elapsed_seconds"],
+                 sys_cost["n_calls"], sys_cost["prompt_tokens"], sys_cost["completion_tokens"])
         cost_summary[sys_name] = sys_cost
 
     out_dir = rd / "agents"

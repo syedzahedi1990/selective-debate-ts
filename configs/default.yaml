@@ -55,6 +55,7 @@ agents:
   max_retries: 2
   cache_dir: outputs/.llm_cache
   debate_rounds: 1
+  concurrency: 8                        # parallel API calls (real providers only)
   pricing_prompt_per_1k: 0.0
   pricing_completion_per_1k: 0.0
   prompt_version: v1
