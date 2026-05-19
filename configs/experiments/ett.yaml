@@ -1,0 +1,37 @@
+# Real-data run on ETT (4 series: h1, h2, m1, m2).
+# Standard univariate setting: predict the OT column.
+#
+# Cost guard: max_test_windows caps the eval set to ~72 instances so the first
+# real-data run finishes in <30 min at ~$5. Remove the cap for the paper run.
+
+run_name: ett_first
+seed: 0
+
+data:
+  dataset: ett
+  data_root: data_cache              # expects CSVs in data_cache/ETT/
+  input_length: 96
+  forecast_horizon: 24
+  val_fraction: 0.10
+  test_fraction: 0.20
+  scaling: instance_zscore
+  max_test_windows: 72               # remove or null for full ETT eval
+
+model_panel:
+  architectures: [lstm, gru, transformer, tcn]
+  regimes: [one_step_recursive, h_step_direct, direct_multi_step]
+  hidden_size: 32
+  num_layers: 2
+  train_epochs: 15
+  batch_size: 64
+
+routers:
+  models: [logistic_regression, random_forest, gradient_boosted, disagreement_threshold]
+
+agents:
+  provider: mock
+  debate_rounds: 1
+  concurrency: 8
+
+evaluation:
+  bootstrap_samples: 1000

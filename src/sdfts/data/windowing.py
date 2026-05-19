@@ -68,6 +68,15 @@ def make_windows(splits: list[SeriesSplit], cfg: dict[str, Any]) -> WindowSet:
                     scale=state,
                 )
                 getattr(ws, split_name).append(w)
+
+    # Optionally subsample test windows so LLM evaluation cost stays bounded.
+    # Pseudo-random (seeded) uniform sample over the full test set, sorted to
+    # preserve chronological order in the saved JSONL.
+    max_test = cfg["data"].get("max_test_windows")
+    if max_test and len(ws.test) > int(max_test):
+        rng = np.random.default_rng(int(cfg.get("seed", 0)))
+        idx = rng.choice(len(ws.test), size=int(max_test), replace=False)
+        ws.test = [ws.test[i] for i in sorted(idx.tolist())]
     return ws
 
 
